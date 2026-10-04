@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import { Plugin } from "@opencode/plugin/tui";
 import type { ResolvedTheme } from "@opencode/theme/tui";
-import { createEffect, createRoot, untrack } from "solid-js";
+import { createEffect, createRoot, on, untrack } from "solid-js";
 import { clampPercent, formatReset } from "./format";
 import {
   accountLabel,
@@ -111,20 +111,49 @@ function UsageWidget(props: { state: WidgetState; theme: ResolvedTheme }) {
   );
 }
 
-function CompactUsage(props: { state: WidgetState; theme: ResolvedTheme }) {
+function CompactUsage(props: {
+  state: WidgetState;
+  theme: ResolvedTheme;
+  showAccount: boolean;
+  onToggle: () => void;
+}) {
   const current = snapshot(props.state);
   const color = (entry: UsageWindow | undefined) =>
     levelColor(props.theme, entry && Math.round(clampPercent(entry.percent)));
+  const label = props.showAccount && current?.account ? current.account : "OpenCode Go";
+  let dragged = false;
   return (
-    <text wrapMode="none">
-      <span style={{ fg: props.theme.text.muted }}>OpenCode Go </span>
-      <span style={{ fg: color(current?.usage?.rolling) }}>{COMPACT_GLYPH}</span>
-      <span style={{ fg: color(current?.usage?.weekly) }}>{COMPACT_GLYPH}</span>
-      <span style={{ fg: color(current?.usage?.monthly) }}>{COMPACT_GLYPH}</span>
-      {props.state.status === "error" ? (
-        <span style={{ fg: props.theme.text.feedback.error.base }}>!</span>
-      ) : null}
-    </text>
+    <box
+      flexDirection="row"
+      gap={1}
+      onMouseDown={() => {
+        dragged = false;
+      }}
+      onMouseDrag={() => {
+        dragged = true;
+      }}
+      onMouseUp={(event) => {
+        if (event.button === 0 && !dragged) props.onToggle();
+      }}
+    >
+      <text
+        fg={props.theme.text.muted}
+        wrapMode="none"
+        truncate
+        flexShrink={1}
+        minWidth={0}
+      >
+        {label}
+      </text>
+      <text wrapMode="none" flexShrink={0}>
+        <span style={{ fg: color(current?.usage?.rolling) }}>{COMPACT_GLYPH}</span>
+        <span style={{ fg: color(current?.usage?.weekly) }}>{COMPACT_GLYPH}</span>
+        <span style={{ fg: color(current?.usage?.monthly) }}>{COMPACT_GLYPH}</span>
+        {props.state.status === "error" ? (
+          <span style={{ fg: props.theme.text.feedback.error.base }}>!</span>
+        ) : null}
+      </text>
+    </box>
   );
 }
 
@@ -141,6 +170,7 @@ export default Plugin.define({
     // so widgets stay stateless and claims remount on every change.
     let last: WidgetState | null = null;
     let switched = false;
+    let showAccount = false;
     let disposeWidget: (() => void) | undefined;
     let disposeCompact: (() => void) | undefined;
     let sidebarRendered = false;
@@ -167,7 +197,7 @@ export default Plugin.define({
     // stored model only updates on submit. Sidebar visibility is not exposed,
     // so the compact indicator follows the model provider alone.
     function isGoSelected() {
-      return context.ui.model?.current?.()?.providerID === "opencode-go";
+      return context.ui.model.current()?.providerID === "opencode-go";
     }
 
     function renderCompact() {
@@ -179,8 +209,21 @@ export default Plugin.define({
       disposeCompact = context.ui.slot({
         append: "session.composer.top",
         render: () =>
-          isGoSelected() ? <CompactUsage state={state} theme={theme} /> : null,
+          isGoSelected() ? (
+            <CompactUsage
+              state={state}
+              theme={theme}
+              showAccount={showAccount}
+              onToggle={toggleAccount}
+            />
+          ) : null,
       });
+    }
+
+    function toggleAccount() {
+      if (!snapshot(last)?.account) return;
+      showAccount = !showAccount;
+      queueMicrotask(() => renderCompact());
     }
 
     function renderWidgets() {
@@ -255,34 +298,28 @@ export default Plugin.define({
     });
 
     // Watch theme and model selection; a remount is the only way to repaint.
-    let themeReady = false;
-    let watchedTheme: unknown;
-    let goReady = false;
-    let watchedGo = false;
     const disposeWatch = createRoot((dispose) => {
-      createEffect(() => {
-        const theme = context.theme;
-        if (!themeReady) {
-          themeReady = true;
-          watchedTheme = theme;
-          return;
-        }
-        if (theme === watchedTheme) return;
-        watchedTheme = theme;
-        untrack(() => renderWidgets());
-      });
-      createEffect(() => {
-        const go = isGoSelected();
-        if (!goReady) {
-          goReady = true;
-          watchedGo = go;
-          return;
-        }
-        if (go === watchedGo) return;
-        watchedGo = go;
-        untrack(() => renderCompact());
-        if (go) resumePolling();
-      });
+      createEffect(
+        on(
+          () => context.theme,
+          (theme, previous) => {
+            if (theme === previous) return;
+            untrack(() => renderWidgets());
+          },
+          { defer: true },
+        ),
+      );
+      createEffect(
+        on(
+          () => isGoSelected(),
+          (go, previous) => {
+            if (go === previous) return;
+            untrack(() => renderCompact());
+            if (go) resumePolling();
+          },
+          { defer: true },
+        ),
+      );
       return dispose;
     });
 

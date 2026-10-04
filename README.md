@@ -2,6 +2,10 @@
 
 OpenCode V2 TUI plugin that shows OpenCode Go quota in the session sidebar, plus a compact `Go ⬢⬢⬢` indicator above the prompt while an OpenCode Go model is selected.
 
+<!-- prettier-ignore -->
+> [!TIP]
+> Click the indicator to toggle its label between `OpenCode Go` and the active account.
+
 ## Installation
 
 Add the package to `cli.json`:

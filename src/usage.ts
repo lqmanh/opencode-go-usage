@@ -23,19 +23,12 @@ type Credential = {
 
 const INTEGRATIONS = ["opencode-go", "opencode"] as const;
 
-class UsageError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "UsageError";
-  }
-}
-
 // AbortSignal.timeout does not reliably fire in the TUI runtime, so settlement
 // must not depend on signal dispatch.
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(
-      () => reject(new UsageError(`usage request did not respond within ${ms}ms`)),
+      () => reject(new Error(`usage request did not respond within ${ms}ms`)),
       ms,
     );
     promise.then(
@@ -110,14 +103,14 @@ function endpointFor(credential: Credential) {
 }
 
 function decodeUsage(input: unknown): GoUsage {
-  if (!isRecord(input)) throw new UsageError("usage response was not an object");
+  if (!isRecord(input)) throw new Error("usage response was not an object");
   const usage = input.usage;
-  if (!isRecord(usage)) throw new UsageError("usage response is missing the usage field");
+  if (!isRecord(usage)) throw new Error("usage response is missing the usage field");
   const read = (name: string): UsageWindow => {
     const item = usage[name];
-    if (!isRecord(item)) throw new UsageError(`usage response is missing ${name}`);
+    if (!isRecord(item)) throw new Error(`usage response is missing ${name}`);
     if (typeof item.percent !== "number" || typeof item.resetsAt !== "string") {
-      throw new UsageError(`usage response has an invalid ${name} window`);
+      throw new Error(`usage response has an invalid ${name} window`);
     }
     return { percent: item.percent, resetsAt: item.resetsAt };
   };
@@ -134,7 +127,7 @@ export async function fetchUsage(credential: Credential): Promise<GoUsage> {
     credential.expires &&
     credential.expires < Date.now()
   ) {
-    throw new UsageError(
+    throw new Error(
       "Console credential expired - send a prompt with an OpenCode Go model to refresh it",
     );
   }
@@ -160,7 +153,7 @@ export async function fetchUsage(credential: Credential): Promise<GoUsage> {
       response.text().catch(() => ""),
       TIMEOUT_MS,
     );
-    throw new UsageError(
+    throw new Error(
       `Go usage request failed with HTTP ${response.status}${detail ? `: ${detail.slice(0, 120)}` : ""}`,
     );
   }
