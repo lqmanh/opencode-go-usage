@@ -1,0 +1,31 @@
+{
+  "name": "opencode-go-usage",
+  "version": "0.1.0",
+  "description": "OpenCode Go quota in the OpenCode V2 TUI sidebar and above the prompt",
+  "type": "module",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lqmanh/opencode-go-usage.git"
+  },
+  "exports": {
+    "./tui": "./tui.tsx"
+  },
+  "files": [
+    "tui.tsx",
+    "usage.ts",
+    "format.ts",
+    "README.md"
+  ],
+  "dependencies": {
+    "@opencode/plugin": "latest"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.5.8",
+    "@opentui/solid": ">=0.5.8",
+    "solid-js": ">=1.9.0"
+  },
+  "engines": {
+    "opencode": ">=2.0.0"
+  }
+}
