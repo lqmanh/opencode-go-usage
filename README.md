@@ -1,6 +1,6 @@
 # opencode-go-usage
 
-OpenCode V2 TUI plugin that shows OpenCode Go quota in the session sidebar, plus a compact `Go ⬢⬢⬢` indicator above the prompt while an OpenCode Go model is selected.
+OpenCode v2 TUI plugin that shows [OpenCode Go](https://opencode.ai/go) quota in the session sidebar, plus a compact `OpenCode Go ⬢⬢⬢` indicator above the prompt when an OpenCode Go model is selected.
 
 <!-- prettier-ignore -->
 > [!TIP]
@@ -8,7 +8,7 @@ OpenCode V2 TUI plugin that shows OpenCode Go quota in the session sidebar, plus
 
 ## Installation
 
-Add the package to `cli.json`:
+Add the plugin to `cli.json`:
 
 ```json
 {
@@ -21,6 +21,19 @@ Add the package to `cli.json`:
 | Option           | Default | Description               |
 | ---------------- | ------- | ------------------------- |
 | `refreshSeconds` | `300`   | Poll interval, minimum 30 |
+
+```json
+{
+  "plugins": [
+    {
+      "package": "github:lqmanh/opencode-go-usage",
+      "options": {
+        "refreshSeconds": 120
+      }
+    }
+  ]
+}
+```
 
 ## Limitations
 

@@ -53,11 +53,19 @@ function WindowRow(props: {
           {percent === undefined ? "—" : `${percent}%`}
         </text>
       </box>
-      <box flexGrow={1} height={1} backgroundColor={track}>
-        {percent !== undefined && (
-          <box width={`${percent}%`} height={1} backgroundColor={color} />
-        )}
-      </box>
+      <box
+        flexGrow={1}
+        height={1}
+        backgroundColor={track}
+        renderAfter={function (buffer) {
+          if (!props.window) return;
+          const cells = Math.round(
+            (clampPercent(props.window.percent) / 100) * this.width,
+          );
+          if (cells < 1) return;
+          buffer.fillRect(this.screenX, this.screenY, cells, 1, color);
+        }}
+      />
       <box width={7} flexShrink={0} flexDirection="row" justifyContent="flex-end">
         <text fg={props.theme.text.muted} wrapMode="none">
           {props.window && formatReset(props.window.resetsAt)}
