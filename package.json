@@ -1,29 +1,41 @@
 {
   "name": "opencode-go-usage",
   "version": "0.1.0",
-  "description": "OpenCode Go quota in the OpenCode V2 TUI sidebar and above the prompt",
+  "description": "OpenCode Go quota in the OpenCode V2 TUI",
   "type": "module",
-  "private": true,
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lqmanh/opencode-go-usage.git"
   },
   "exports": {
-    "./tui": "./tui.tsx"
+    "./tui": "./src/tui.tsx"
   },
   "files": [
-    "tui.tsx",
-    "usage.ts",
-    "format.ts",
-    "README.md"
+    "src"
   ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "tsc --noEmit && oxlint && prettier --check ."
+  },
   "dependencies": {
-    "@opencode/plugin": "latest"
+    "@opencode/plugin": "^2.0.22"
   },
   "peerDependencies": {
-    "@opentui/core": ">=0.5.8",
-    "@opentui/solid": ">=0.5.8",
+    "@opentui/core": ">=0.5.14",
+    "@opentui/solid": ">=0.5.14",
     "solid-js": ">=1.9.0"
+  },
+  "devDependencies": {
+    "@opencode/client": "^2.0.22",
+    "@opencode/theme": "^2.0.22",
+    "@types/node": "^26.6.4",
+    "oxlint": "^1.86.0",
+    "prettier": "^3.9.9",
+    "typescript": "^7.0.2"
   },
   "engines": {
     "opencode": ">=2.0.0"

@@ -1,10 +1,8 @@
 # opencode-go-usage
 
-OpenCode V2 TUI plugin that shows OpenCode Go quota in the session sidebar,
-plus a compact `Go ⬢⬢⬢` indicator above the prompt while an OpenCode Go model is
-selected.
+OpenCode V2 TUI plugin that shows OpenCode Go quota in the session sidebar, plus a compact `Go ⬢⬢⬢` indicator above the prompt while an OpenCode Go model is selected.
 
-## Install
+## Installation
 
 Add the package to `cli.json`:
 
@@ -14,7 +12,7 @@ Add the package to `cli.json`:
 }
 ```
 
-## Options
+### Options
 
 | Option           | Default | Description               |
 | ---------------- | ------- | ------------------------- |
@@ -22,9 +20,14 @@ Add the package to `cli.json`:
 
 ## Limitations
 
-- Reads local OpenCode state, so it only works with a local server.
-- Hides itself when no credential is found; connect OpenCode Go with `/connect`.
-- Expired Console credentials are reported, not refreshed; use OpenCode once to
-  refresh them, or configure an API key.
-- With the sidebar hidden, usage is only visible as the compact indicator, and
-  only for OpenCode Go models.
+- Expired Console credentials are reported, not refreshed by the plugin; the token refreshes the next time OpenCode uses it, so send a prompt with an OpenCode Go model. Alternatively, configure an API key.
+- No manual refresh; usage updates on the poll interval and when credentials change.
+
+## Development
+
+```sh
+bun install
+bun run check
+```
+
+To load this checkout directly, point `cli.json` at the repository directory. The root `tui.tsx` re-exports `src/tui.tsx` because OpenCode resolves local plugin directories by filename, while installed packages use the `./tui` export.
