@@ -13,11 +13,21 @@ import {
 
 const COMPACT_GLYPH = "⬢";
 
+type WindowKey = keyof GoUsage;
+
+const WINDOW_LABELS: Record<WindowKey, string> = {
+  rolling: "5h",
+  weekly: "wk",
+  monthly: "mo",
+};
+
+const WINDOW_KEYS = Object.keys(WINDOW_LABELS) as WindowKey[];
+
 type WidgetState =
   | { status: "loading" }
-  | { status: "ok"; usage: GoUsage; account?: string }
+  | { status: "ok"; usage: GoUsage; account?: string; now: number }
   | { status: "unavailable" }
-  | { status: "error"; message: string; usage?: GoUsage; account?: string };
+  | { status: "error"; message: string; usage?: GoUsage; account?: string; now: number };
 
 function levelColor(theme: ResolvedTheme, percent: number | undefined) {
   if (percent === undefined) return theme.text.muted;
@@ -33,6 +43,7 @@ function snapshot(state: WidgetState | null) {
 function WindowRow(props: {
   label: string;
   window: UsageWindow | undefined;
+  now: number | undefined;
   theme: ResolvedTheme;
 }) {
   const percent = props.window && Math.round(clampPercent(props.window.percent));
@@ -68,7 +79,7 @@ function WindowRow(props: {
       />
       <box width={7} flexShrink={0} flexDirection="row" justifyContent="flex-end">
         <text fg={props.theme.text.muted} wrapMode="none">
-          {props.window && formatReset(props.window.resetsAt)}
+          {props.window && formatReset(props.window.resetsAt, props.now)}
         </text>
       </box>
     </box>
@@ -107,9 +118,24 @@ function UsageWidget(props: { state: WidgetState; theme: ResolvedTheme }) {
           </text>
         ) : null}
       </box>
-      <WindowRow label="5h" window={current?.usage?.rolling} theme={props.theme} />
-      <WindowRow label="wk" window={current?.usage?.weekly} theme={props.theme} />
-      <WindowRow label="mo" window={current?.usage?.monthly} theme={props.theme} />
+      <WindowRow
+        label={WINDOW_LABELS.rolling}
+        window={current?.usage?.rolling}
+        now={current?.now}
+        theme={props.theme}
+      />
+      <WindowRow
+        label={WINDOW_LABELS.weekly}
+        window={current?.usage?.weekly}
+        now={current?.now}
+        theme={props.theme}
+      />
+      <WindowRow
+        label={WINDOW_LABELS.monthly}
+        window={current?.usage?.monthly}
+        now={current?.now}
+        theme={props.theme}
+      />
       {statusLine ? (
         <text fg={statusColor} wrapMode="word">
           {statusLine}
@@ -119,47 +145,63 @@ function UsageWidget(props: { state: WidgetState; theme: ResolvedTheme }) {
   );
 }
 
+function clickHandlers(onClick: () => void) {
+  let dragged = false;
+  return {
+    onMouseDown: () => {
+      dragged = false;
+    },
+    onMouseDrag: () => {
+      dragged = true;
+    },
+    onMouseUp: (event: { button: number }) => {
+      if (event.button === 0 && !dragged) onClick();
+    },
+  };
+}
+
 function CompactUsage(props: {
   state: WidgetState;
   theme: ResolvedTheme;
   showAccount: boolean;
+  countdown: WindowKey;
   onToggle: () => void;
+  onCycle: () => void;
 }) {
   const current = snapshot(props.state);
   const color = (entry: UsageWindow | undefined) =>
     levelColor(props.theme, entry && Math.round(clampPercent(entry.percent)));
-  const label = props.showAccount && current?.account ? current.account : "OpenCode Go";
-  let dragged = false;
+  const name = props.showAccount && current?.account ? current.account : "OpenCode Go";
+  const selected = current?.usage?.[props.countdown];
+  const reset = selected ? formatReset(selected.resetsAt, current?.now) : "—";
   return (
-    <box
-      flexDirection="row"
-      gap={1}
-      onMouseDown={() => {
-        dragged = false;
-      }}
-      onMouseDrag={() => {
-        dragged = true;
-      }}
-      onMouseUp={(event) => {
-        if (event.button === 0 && !dragged) props.onToggle();
-      }}
-    >
+    <box flexDirection="row" gap={1} justifyContent="space-between">
+      <box flexDirection="row" gap={1} {...clickHandlers(props.onToggle)}>
+        <text
+          fg={props.theme.text.muted}
+          wrapMode="none"
+          truncate
+          flexShrink={1}
+          minWidth={0}
+        >
+          {name}
+        </text>
+        <text wrapMode="none" flexShrink={0}>
+          {WINDOW_KEYS.map((key) => (
+            <span style={{ fg: color(current?.usage?.[key]) }}>{COMPACT_GLYPH}</span>
+          ))}
+          {props.state.status === "error" ? (
+            <span style={{ fg: props.theme.text.feedback.error.base }}>!</span>
+          ) : null}
+        </text>
+      </box>
       <text
         fg={props.theme.text.muted}
         wrapMode="none"
-        truncate
-        flexShrink={1}
-        minWidth={0}
+        flexShrink={0}
+        {...clickHandlers(props.onCycle)}
       >
-        {label}
-      </text>
-      <text wrapMode="none" flexShrink={0}>
-        <span style={{ fg: color(current?.usage?.rolling) }}>{COMPACT_GLYPH}</span>
-        <span style={{ fg: color(current?.usage?.weekly) }}>{COMPACT_GLYPH}</span>
-        <span style={{ fg: color(current?.usage?.monthly) }}>{COMPACT_GLYPH}</span>
-        {props.state.status === "error" ? (
-          <span style={{ fg: props.theme.text.feedback.error.base }}>!</span>
-        ) : null}
+        {`${WINDOW_LABELS[props.countdown]} · ${reset}`}
       </text>
     </box>
   );
@@ -179,6 +221,7 @@ export default Plugin.define({
     let last: WidgetState | null = null;
     let switched = false;
     let showAccount = false;
+    let countdown: WindowKey = "rolling";
     let disposeWidget: (() => void) | undefined;
     let disposeCompact: (() => void) | undefined;
     let sidebarRendered = false;
@@ -222,7 +265,9 @@ export default Plugin.define({
               state={state}
               theme={theme}
               showAccount={showAccount}
+              countdown={countdown}
               onToggle={toggleAccount}
+              onCycle={cycleCountdown}
             />
           ) : null,
       });
@@ -231,6 +276,11 @@ export default Plugin.define({
     function toggleAccount() {
       if (!snapshot(last)?.account) return;
       showAccount = !showAccount;
+      queueMicrotask(() => renderCompact());
+    }
+
+    function cycleCountdown() {
+      countdown = WINDOW_KEYS[(WINDOW_KEYS.indexOf(countdown) + 1) % WINDOW_KEYS.length];
       queueMicrotask(() => renderCompact());
     }
 
@@ -271,7 +321,7 @@ export default Plugin.define({
         const usage = await fetchUsage(credential);
         if (current !== generation) return;
         switched = false;
-        last = { status: "ok", usage, account };
+        last = { status: "ok", usage, account, now: Date.now() };
         renderWidgets();
       } catch (error) {
         if (current !== generation) return;
@@ -281,6 +331,7 @@ export default Plugin.define({
           message: error instanceof Error ? error.message : String(error),
           usage: switched ? undefined : previous?.usage,
           account: account ?? previous?.account,
+          now: Date.now(),
         };
         switched = false;
         renderWidgets();

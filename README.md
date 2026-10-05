@@ -1,10 +1,29 @@
 # opencode-go-usage
 
-OpenCode v2 TUI plugin that shows [OpenCode Go](https://opencode.ai/go) quota in the session sidebar, plus a compact `OpenCode Go ⬢⬢⬢` indicator above the prompt when an OpenCode Go model is selected.
+OpenCode v2 TUI plugin that shows [OpenCode Go](https://opencode.ai/go) quota in the sidebar, plus a compact indicator above the prompt when an OpenCode Go model is selected.
+
+## Preview
+
+Sidebar widget:
+
+```text
+OpenCode Go              account@example.com
+5h 42% ████████████░░░░░░░░░░░░░░░░░   3h 6m
+wk 18% █████░░░░░░░░░░░░░░░░░░░░░░░░  2d 11h
+mo  7% ██░░░░░░░░░░░░░░░░░░░░░░░░░░░     20d
+```
+
+Compact indicator:
+
+```text
+OpenCode Go ⬢⬢⬢                   5h · 3h 6m
+```
+
+The three ⬢ glyphs stand for the `5h`, `wk`, and `mo` windows in order. Colors indicate usage level: green normally, amber from 70%, red from 90%. A trailing `!` marks a failed refresh.
 
 <!-- prettier-ignore -->
 > [!TIP]
-> Click the indicator to toggle its label between `OpenCode Go` and the active account.
+> Click the name or ⬢ glyphs to toggle between `OpenCode Go` and the active account. Click the countdown to cycle the window it tracks: `5h → wk → mo`.
 
 ## Installation
 
