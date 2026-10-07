@@ -1,5 +1,11 @@
+import type { UsageWindow } from "./usage";
+
 export function clampPercent(percent: number) {
   return Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
+}
+
+export function displayPercent(window: UsageWindow | undefined) {
+  return window && Math.round(clampPercent(window.percent));
 }
 
 export function formatReset(resetsAt: string, now = Date.now()) {

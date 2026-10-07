@@ -1,8 +1,9 @@
 /** @jsxImportSource @opentui/solid */
 import { Plugin } from "@opencode/plugin/tui";
 import type { ResolvedTheme } from "@opencode/theme/tui";
+import type { JSX } from "@opentui/solid";
 import { createEffect, createRoot, on, untrack } from "solid-js";
-import { clampPercent, formatReset } from "./format";
+import { clampPercent, displayPercent, formatReset } from "./format";
 import {
   accountLabel,
   fetchUsage,
@@ -11,7 +12,8 @@ import {
   type UsageWindow,
 } from "./usage";
 
-const COMPACT_GLYPH = "⬢";
+const LEVEL_COLORS = ["success", "warning", "error"] as const;
+const LEVEL_GLYPHS = ["◇", "◈", "◆"];
 
 type WindowKey = keyof GoUsage;
 
@@ -29,15 +31,36 @@ type WidgetState =
   | { status: "unavailable" }
   | { status: "error"; message: string; usage?: GoUsage; account?: string; now: number };
 
+function level(percent: number | undefined): 0 | 1 | 2 {
+  if (percent === undefined) return 0;
+  if (percent >= 90) return 2;
+  if (percent >= 70) return 1;
+  return 0;
+}
+
 function levelColor(theme: ResolvedTheme, percent: number | undefined) {
   if (percent === undefined) return theme.text.muted;
-  if (percent >= 90) return theme.text.feedback.error.base;
-  if (percent >= 70) return theme.text.feedback.warning.base;
-  return theme.text.feedback.success.base;
+  return theme.text.feedback[LEVEL_COLORS[level(percent)]].base;
 }
 
 function snapshot(state: WidgetState | null) {
   return state && (state.status === "ok" || state.status === "error") ? state : undefined;
+}
+
+function ResetTime(props: {
+  reset: string | undefined;
+  theme: ResolvedTheme;
+  error?: boolean;
+}) {
+  return (
+    <box width={7} flexShrink={0} flexDirection="row" justifyContent="flex-end">
+      <text
+        fg={props.error ? props.theme.text.feedback.error.base : props.theme.text.muted}
+      >
+        {props.reset}
+      </text>
+    </box>
+  );
 }
 
 function WindowRow(props: {
@@ -46,12 +69,12 @@ function WindowRow(props: {
   now: number | undefined;
   theme: ResolvedTheme;
 }) {
-  const percent = props.window && Math.round(clampPercent(props.window.percent));
+  const percent = displayPercent(props.window);
   const color = levelColor(props.theme, percent);
   const track = props.window && props.theme.background.raised.high;
   return (
     <box flexDirection="row" gap={1}>
-      <text fg={props.theme.text.base} width={2} flexShrink={0} wrapMode="none">
+      <text fg={props.theme.text.base} width={2} flexShrink={0}>
         {props.label}
       </text>
       <box
@@ -60,9 +83,7 @@ function WindowRow(props: {
         flexDirection="row"
         justifyContent="flex-end"
       >
-        <text fg={color} wrapMode="none">
-          {percent === undefined ? "—" : `${percent}%`}
-        </text>
+        <text fg={color}>{percent === undefined ? "—" : `${percent}%`}</text>
       </box>
       <box
         flexGrow={1}
@@ -77,11 +98,10 @@ function WindowRow(props: {
           buffer.fillRect(this.screenX, this.screenY, cells, 1, color);
         }}
       />
-      <box width={7} flexShrink={0} flexDirection="row" justifyContent="flex-end">
-        <text fg={props.theme.text.muted} wrapMode="none">
-          {props.window && formatReset(props.window.resetsAt, props.now)}
-        </text>
-      </box>
+      <ResetTime
+        reset={props.window && formatReset(props.window.resetsAt, props.now)}
+        theme={props.theme}
+      />
     </box>
   );
 }
@@ -102,7 +122,7 @@ function UsageWidget(props: { state: WidgetState; theme: ResolvedTheme }) {
   return (
     <box flexDirection="column">
       <box flexDirection="row" gap={1}>
-        <text fg={props.theme.text.base} flexShrink={0} wrapMode="none">
+        <text fg={props.theme.text.base} flexShrink={0}>
           <b>OpenCode Go</b>
         </text>
         {account ? (
@@ -118,24 +138,14 @@ function UsageWidget(props: { state: WidgetState; theme: ResolvedTheme }) {
           </text>
         ) : null}
       </box>
-      <WindowRow
-        label={WINDOW_LABELS.rolling}
-        window={current?.usage?.rolling}
-        now={current?.now}
-        theme={props.theme}
-      />
-      <WindowRow
-        label={WINDOW_LABELS.weekly}
-        window={current?.usage?.weekly}
-        now={current?.now}
-        theme={props.theme}
-      />
-      <WindowRow
-        label={WINDOW_LABELS.monthly}
-        window={current?.usage?.monthly}
-        now={current?.now}
-        theme={props.theme}
-      />
+      {WINDOW_KEYS.map((key) => (
+        <WindowRow
+          label={WINDOW_LABELS[key]}
+          window={current?.usage?.[key]}
+          now={current?.now}
+          theme={props.theme}
+        />
+      ))}
       {statusLine ? (
         <text fg={statusColor} wrapMode="word">
           {statusLine}
@@ -169,40 +179,37 @@ function CompactUsage(props: {
   onCycle: () => void;
 }) {
   const current = snapshot(props.state);
-  const color = (entry: UsageWindow | undefined) =>
-    levelColor(props.theme, entry && Math.round(clampPercent(entry.percent)));
   const name = props.showAccount && current?.account ? current.account : "OpenCode Go";
   const selected = current?.usage?.[props.countdown];
   const reset = selected ? formatReset(selected.resetsAt, current?.now) : "—";
+  const error = props.state.status === "error";
   return (
     <box flexDirection="row" gap={1} justifyContent="space-between">
-      <box flexDirection="row" gap={1} {...clickHandlers(props.onToggle)}>
-        <text
-          fg={props.theme.text.muted}
-          wrapMode="none"
-          truncate
-          flexShrink={1}
-          minWidth={0}
-        >
-          {name}
-        </text>
-        <text wrapMode="none" flexShrink={0}>
-          {WINDOW_KEYS.map((key) => (
-            <span style={{ fg: color(current?.usage?.[key]) }}>{COMPACT_GLYPH}</span>
-          ))}
-          {props.state.status === "error" ? (
-            <span style={{ fg: props.theme.text.feedback.error.base }}>!</span>
-          ) : null}
-        </text>
-      </box>
       <text
         fg={props.theme.text.muted}
         wrapMode="none"
-        flexShrink={0}
-        {...clickHandlers(props.onCycle)}
+        truncate
+        flexShrink={1}
+        minWidth={0}
+        {...clickHandlers(props.onToggle)}
       >
-        {`${WINDOW_LABELS[props.countdown]} · ${reset}`}
+        {name}
       </text>
+      <box flexDirection="row" gap={1} flexShrink={0} {...clickHandlers(props.onCycle)}>
+        <text>
+          {WINDOW_KEYS.map((key, index) => {
+            const entry = current?.usage?.[key];
+            const percent = displayPercent(entry);
+            const glyph = LEVEL_GLYPHS[level(percent)];
+            const fg =
+              key === props.countdown
+                ? levelColor(props.theme, percent)
+                : props.theme.text.muted;
+            return <span style={{ fg }}>{index > 0 ? ` ${glyph}` : glyph}</span>;
+          })}
+        </text>
+        <ResetTime reset={reset} theme={props.theme} error={error} />
+      </box>
     </box>
   );
 }
@@ -222,25 +229,28 @@ export default Plugin.define({
     let switched = false;
     let showAccount = false;
     let countdown: WindowKey = "rolling";
-    let disposeWidget: (() => void) | undefined;
+    let disposeSidebar: (() => void) | undefined;
     let disposeCompact: (() => void) | undefined;
     let sidebarRendered = false;
     let suspended = false;
 
-    function renderWidget() {
-      disposeWidget?.();
-      disposeWidget = undefined;
-      sidebarRendered = false;
-      if (last?.status === "unavailable") return;
+    function claimSlot(
+      append: "sidebar.content" | "session.composer.top",
+      render: (state: WidgetState, theme: ResolvedTheme) => JSX.Element,
+    ) {
+      if (last?.status === "unavailable") return undefined;
       const state: WidgetState = last ?? { status: "loading" };
       const theme = context.theme;
-      disposeWidget = context.ui.slot({
-        append: "sidebar.content",
-        render: () => {
-          sidebarRendered = true;
-          resumePolling();
-          return <UsageWidget state={state} theme={theme} />;
-        },
+      return context.ui.slot({ append, render: () => render(state, theme) });
+    }
+
+    function renderSidebar() {
+      disposeSidebar?.();
+      sidebarRendered = false;
+      disposeSidebar = claimSlot("sidebar.content", (state, theme) => {
+        sidebarRendered = true;
+        resumePolling();
+        return <UsageWidget state={state} theme={theme} />;
       });
     }
 
@@ -253,24 +263,18 @@ export default Plugin.define({
 
     function renderCompact() {
       disposeCompact?.();
-      disposeCompact = undefined;
-      if (last?.status === "unavailable") return;
-      const state: WidgetState = last ?? { status: "loading" };
-      const theme = context.theme;
-      disposeCompact = context.ui.slot({
-        append: "session.composer.top",
-        render: () =>
-          isGoSelected() ? (
-            <CompactUsage
-              state={state}
-              theme={theme}
-              showAccount={showAccount}
-              countdown={countdown}
-              onToggle={toggleAccount}
-              onCycle={cycleCountdown}
-            />
-          ) : null,
-      });
+      disposeCompact = claimSlot("session.composer.top", (state, theme) =>
+        isGoSelected() ? (
+          <CompactUsage
+            state={state}
+            theme={theme}
+            showAccount={showAccount}
+            countdown={countdown}
+            onToggle={toggleAccount}
+            onCycle={cycleCountdown}
+          />
+        ) : null,
+      );
     }
 
     function toggleAccount() {
@@ -284,8 +288,8 @@ export default Plugin.define({
       queueMicrotask(() => renderCompact());
     }
 
-    function renderWidgets() {
-      renderWidget();
+    function renderAll() {
+      renderSidebar();
       renderCompact();
     }
 
@@ -302,7 +306,6 @@ export default Plugin.define({
     }
 
     let generation = 0;
-    let timer: ReturnType<typeof setInterval> | undefined;
 
     async function refresh() {
       const current = ++generation;
@@ -314,15 +317,13 @@ export default Plugin.define({
         if (!credential) {
           switched = false;
           last = { status: "unavailable" };
-          renderWidgets();
-          return;
+        } else {
+          account = accountLabel(credential);
+          const usage = await fetchUsage(credential);
+          if (current !== generation) return;
+          switched = false;
+          last = { status: "ok", usage, account, now: Date.now() };
         }
-        account = accountLabel(credential);
-        const usage = await fetchUsage(credential);
-        if (current !== generation) return;
-        switched = false;
-        last = { status: "ok", usage, account, now: Date.now() };
-        renderWidgets();
       } catch (error) {
         if (current !== generation) return;
         const previous = snapshot(last);
@@ -334,13 +335,13 @@ export default Plugin.define({
           now: Date.now(),
         };
         switched = false;
-        renderWidgets();
       }
+      renderAll();
     }
 
-    renderWidgets();
+    renderAll();
     void refresh();
-    timer = setInterval(() => {
+    const timer = setInterval(() => {
       if (!shouldPoll()) {
         suspended = true;
         return;
@@ -363,7 +364,7 @@ export default Plugin.define({
           () => context.theme,
           (theme, previous) => {
             if (theme === previous) return;
-            untrack(() => renderWidgets());
+            untrack(() => renderAll());
           },
           { defer: true },
         ),
@@ -387,8 +388,8 @@ export default Plugin.define({
       stopCredentialSwitched();
       disposeWatch();
       generation++;
-      if (timer) clearInterval(timer);
-      disposeWidget?.();
+      clearInterval(timer);
+      disposeSidebar?.();
       disposeCompact?.();
     };
   },

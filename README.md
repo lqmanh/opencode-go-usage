@@ -16,14 +16,14 @@ mo  7% ██░░░░░░░░░░░░░░░░░░░░░░�
 Compact indicator:
 
 ```text
-OpenCode Go ⬢⬢⬢                   5h · 3h 6m
+OpenCode Go                    ◈ ◇ ◇   3h 6m
 ```
 
-The three ⬢ glyphs stand for the `5h`, `wk`, and `mo` windows in order. Colors indicate usage level: green normally, amber from 70%, red from 90%. A trailing `!` marks a failed refresh.
+The three glyphs stand for the `5h`, `wk`, and `mo` windows in order. Each fills up as usage rises: `◇` below 70%, `◈` from 70%, `◆` from 90%. The window the countdown tracks is colored by the same levels — green, amber, red — while the others stay muted.
 
 <!-- prettier-ignore -->
 > [!TIP]
-> Click the name or ⬢ glyphs to toggle between `OpenCode Go` and the active account. Click the countdown to cycle the window it tracks: `5h → wk → mo`.
+> Click the name to toggle between `OpenCode Go` and the active account. Click the glyphs or the countdown to cycle the window it tracks: `5h → wk → mo`.
 
 ## Installation
 
