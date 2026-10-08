@@ -4,6 +4,21 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+export function toNumber(value: unknown): number | undefined {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+export function epochToISO(value: unknown): string {
+  const time = toNumber(value);
+  if (time === undefined || time <= 0) return "";
+  return new Date(time < 1e12 ? time * 1000 : time).toISOString();
+}
+
 // AbortSignal.timeout does not reliably fire in the TUI runtime, so settlement
 // must not depend on signal dispatch.
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {

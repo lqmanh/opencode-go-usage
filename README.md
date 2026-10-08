@@ -6,6 +6,8 @@ OpenCode v2 TUI plugin that shows the selected provider's quota/usage in the sid
 
 - [OpenCode Go](https://opencode.ai/go)
 - [Kimi for Coding CN](https://www.kimi.com/code) and [Kimi for Coding Global](https://www.kimi.ai/code)
+- [Z.AI Coding Plan](https://z.ai) and [Zhipu AI Coding Plan](https://bigmodel.cn)
+- [ChatGPT Go/Plus/Pro](https://chatgpt.com)
 
 ## Preview
 
@@ -13,9 +15,9 @@ Sidebar widget:
 
 ```text
 OpenCode Go                          Default
-5h 42% ████████████░░░░░░░░░░░░░░░░░   3h 6m
-wk 18% █████░░░░░░░░░░░░░░░░░░░░░░░░  2d 11h
-mo  7% ██░░░░░░░░░░░░░░░░░░░░░░░░░░░     20d
+5h  42% ████████████░░░░░░░░░░░░░░░░   3h 6m
+1w  18% █████░░░░░░░░░░░░░░░░░░░░░░░  2d 11h
+1mo  7% ██░░░░░░░░░░░░░░░░░░░░░░░░░░     20d
 ```
 
 Compact indicator:

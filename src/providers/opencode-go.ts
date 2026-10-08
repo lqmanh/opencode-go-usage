@@ -1,11 +1,15 @@
 import { fetchUsageJSON, isRecord } from "../http";
-import type { UsageWindow } from "../usage";
+import {
+  WINDOW_LABELS,
+  expectUsageRecord,
+  expectWindows,
+  type UsageWindow,
+} from "../usage";
 import type { Credential, UsageProvider } from "./types";
 
 const INTEGRATIONS = ["opencode-go", "opencode"] as const;
-const LABELS = { rolling: "5h", weekly: "wk", monthly: "mo" } as const;
 
-type WindowID = keyof typeof LABELS;
+type WindowID = keyof typeof WINDOW_LABELS;
 
 // API keys use the zen endpoint; Console tokens use the inference gateway.
 function endpointFor(credential: Credential) {
@@ -15,8 +19,7 @@ function endpointFor(credential: Credential) {
 }
 
 function decodeUsage(input: unknown): UsageWindow[] {
-  if (!isRecord(input)) throw new Error("usage response was not an object");
-  const usage = input.usage;
+  const usage = expectUsageRecord(input).usage;
   if (!isRecord(usage)) throw new Error("usage response is missing the usage field");
   const read = (id: WindowID): UsageWindow => {
     const item = usage[id];
@@ -24,9 +27,14 @@ function decodeUsage(input: unknown): UsageWindow[] {
     if (typeof item.percent !== "number" || typeof item.resetsAt !== "string") {
       throw new Error(`usage response has an invalid ${id} window`);
     }
-    return { id, label: LABELS[id], percent: item.percent, resetsAt: item.resetsAt };
+    return {
+      id,
+      label: WINDOW_LABELS[id],
+      percent: item.percent,
+      resetsAt: item.resetsAt,
+    };
   };
-  return [read("rolling"), read("weekly"), read("monthly")];
+  return expectWindows([read("rolling"), read("weekly"), read("monthly")]);
 }
 
 async function fetchUsage(credential: Credential): Promise<UsageWindow[]> {
