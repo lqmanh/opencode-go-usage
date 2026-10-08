@@ -1,12 +1,12 @@
 {
-  "name": "opencode-go-usage",
-  "version": "0.1.0",
-  "description": "OpenCode Go quota in the OpenCode V2 TUI",
+  "name": "opencode-usage",
+  "version": "0.2.0",
+  "description": "Model provider quota/usage in OpenCode v2 TUI",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lqmanh/opencode-go-usage.git"
+    "url": "git+https://github.com/lqmanh/opencode-usage.git"
   },
   "exports": {
     "./tui": "./src/tui.tsx"

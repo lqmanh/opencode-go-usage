@@ -4,32 +4,24 @@ import type { ResolvedTheme } from "@opencode/theme/tui";
 import type { JSX } from "@opentui/solid";
 import { createEffect, createRoot, on, untrack } from "solid-js";
 import { clampPercent, displayPercent, formatReset } from "./format";
-import {
-  accountLabel,
-  fetchUsage,
-  pickCredential,
-  type GoUsage,
-  type UsageWindow,
-} from "./usage";
+import { findProvider, resolveCredential } from "./providers";
+import { selectWindow, type UsageWindow } from "./usage";
 
 const LEVEL_COLORS = ["success", "warning", "error"] as const;
 const LEVEL_GLYPHS = ["◇", "◈", "◆"];
 
-type WindowKey = keyof GoUsage;
-
-const WINDOW_LABELS: Record<WindowKey, string> = {
-  rolling: "5h",
-  weekly: "wk",
-  monthly: "mo",
+type Snapshot = {
+  name: string;
+  account: string;
+  windows: UsageWindow[];
+  now: number;
 };
-
-const WINDOW_KEYS = Object.keys(WINDOW_LABELS) as WindowKey[];
 
 type WidgetState =
   | { status: "loading" }
-  | { status: "ok"; usage: GoUsage; account?: string; now: number }
+  | ({ status: "ok" } & Snapshot)
   | { status: "unavailable" }
-  | { status: "error"; message: string; usage?: GoUsage; account?: string; now: number };
+  | ({ status: "error"; message: string } & Partial<Snapshot>);
 
 function level(percent: number | undefined): 0 | 1 | 2 {
   if (percent === undefined) return 0;
@@ -65,6 +57,7 @@ function ResetTime(props: {
 
 function WindowRow(props: {
   label: string;
+  labelWidth: number;
   window: UsageWindow | undefined;
   now: number | undefined;
   theme: ResolvedTheme;
@@ -74,7 +67,7 @@ function WindowRow(props: {
   const track = props.window && props.theme.background.raised.high;
   return (
     <box flexDirection="row" gap={1}>
-      <text fg={props.theme.text.base} width={2} flexShrink={0}>
+      <text fg={props.theme.text.base} width={props.labelWidth} flexShrink={0}>
         {props.label}
       </text>
       <box
@@ -118,30 +111,37 @@ function UsageWidget(props: { state: WidgetState; theme: ResolvedTheme }) {
     props.state.status === "error"
       ? props.theme.text.feedback.error.base
       : props.theme.text.muted;
-  const account = current?.account;
+  const windows = current?.windows ?? [];
+  const labelWidth = windows.reduce(
+    (width, window) => Math.max(width, window.label.length),
+    0,
+  );
   return (
     <box flexDirection="column">
-      <box flexDirection="row" gap={1}>
-        <text fg={props.theme.text.base} flexShrink={0}>
-          <b>OpenCode Go</b>
-        </text>
-        {account ? (
-          <text
-            fg={props.theme.text.muted}
-            flexGrow={1}
-            minWidth={0}
-            truncate
-            wrapMode="none"
-            textAlign="right"
-          >
-            {account}
+      {current?.name ? (
+        <box flexDirection="row" gap={1}>
+          <text fg={props.theme.text.base} flexShrink={0}>
+            <b>{current.name}</b>
           </text>
-        ) : null}
-      </box>
-      {WINDOW_KEYS.map((key) => (
+          {current.account ? (
+            <text
+              fg={props.theme.text.muted}
+              flexGrow={1}
+              minWidth={0}
+              truncate
+              wrapMode="none"
+              textAlign="right"
+            >
+              {current.account}
+            </text>
+          ) : null}
+        </box>
+      ) : null}
+      {windows.map((window) => (
         <WindowRow
-          label={WINDOW_LABELS[key]}
-          window={current?.usage?.[key]}
+          label={window.label}
+          labelWidth={labelWidth}
+          window={window}
           now={current?.now}
           theme={props.theme}
         />
@@ -174,15 +174,21 @@ function CompactUsage(props: {
   state: WidgetState;
   theme: ResolvedTheme;
   showAccount: boolean;
-  countdown: WindowKey;
+  countdown: string | undefined;
   onToggle: () => void;
   onCycle: () => void;
 }) {
   const current = snapshot(props.state);
-  const name = props.showAccount && current?.account ? current.account : "OpenCode Go";
-  const selected = current?.usage?.[props.countdown];
-  const reset = selected ? formatReset(selected.resetsAt, current?.now) : "—";
+  const windows = current?.windows ?? [];
+  if (windows.length === 0) return null;
+  const name = props.showAccount && current?.account ? current.account : current?.name;
+  const selected = selectWindow(windows, props.countdown);
+  const reset = formatReset(selected.resetsAt, current?.now);
   const error = props.state.status === "error";
+  const labelWidth = windows.reduce(
+    (width, window) => Math.max(width, window.label.length),
+    0,
+  );
   return (
     <box flexDirection="row" gap={1} justifyContent="space-between">
       <text
@@ -197,17 +203,20 @@ function CompactUsage(props: {
       </text>
       <box flexDirection="row" gap={1} flexShrink={0} {...clickHandlers(props.onCycle)}>
         <text>
-          {WINDOW_KEYS.map((key, index) => {
-            const entry = current?.usage?.[key];
-            const percent = displayPercent(entry);
+          {windows.map((window, index) => {
+            const percent = displayPercent(window);
             const glyph = LEVEL_GLYPHS[level(percent)];
             const fg =
-              key === props.countdown
+              window.id === selected.id
                 ? levelColor(props.theme, percent)
                 : props.theme.text.muted;
             return <span style={{ fg }}>{index > 0 ? ` ${glyph}` : glyph}</span>;
           })}
         </text>
+        <text fg={props.theme.text.muted} width={labelWidth} flexShrink={0}>
+          {selected.label}
+        </text>
+        <text fg={props.theme.text.muted}>·</text>
         <ResetTime reset={reset} theme={props.theme} error={error} />
       </box>
     </box>
@@ -215,7 +224,7 @@ function CompactUsage(props: {
 }
 
 export default Plugin.define({
-  id: "opencode-go-usage",
+  id: "opencode-usage",
   setup(context) {
     const options = (context.options ?? {}) as Record<string, unknown>;
     const refreshSeconds =
@@ -226,13 +235,23 @@ export default Plugin.define({
     // The host repaints only a plugin's initial frame (anomalyco/opencode#39986),
     // so widgets stay stateless and claims remount on every change.
     let last: WidgetState | null = null;
-    let switched = false;
     let showAccount = false;
-    let countdown: WindowKey = "rolling";
+    let countdown: string | undefined;
     let disposeSidebar: (() => void) | undefined;
     let disposeCompact: (() => void) | undefined;
     let sidebarRendered = false;
-    let suspended = false;
+
+    // ui.model.current() reflects the picker's draft selection; the session's
+    // stored model only updates on submit.
+    function selectedProvider() {
+      const providerID = context.ui.model.current()?.providerID;
+      if (!providerID) return undefined;
+      const info = context.data.location.provider
+        .list()
+        ?.find((item) => item.id === providerID);
+      const adapter = findProvider(providerID, info?.canonical);
+      return adapter ? { adapter, info } : undefined;
+    }
 
     function claimSlot(
       append: "sidebar.content" | "session.composer.top",
@@ -249,22 +268,14 @@ export default Plugin.define({
       sidebarRendered = false;
       disposeSidebar = claimSlot("sidebar.content", (state, theme) => {
         sidebarRendered = true;
-        resumePolling();
         return <UsageWidget state={state} theme={theme} />;
       });
-    }
-
-    // ui.model.current() reflects the picker's draft selection; the session's
-    // stored model only updates on submit. Sidebar visibility is not exposed,
-    // so the compact indicator follows the model provider alone.
-    function isGoSelected() {
-      return context.ui.model.current()?.providerID === "opencode-go";
     }
 
     function renderCompact() {
       disposeCompact?.();
       disposeCompact = claimSlot("session.composer.top", (state, theme) =>
-        isGoSelected() ? (
+        selectedProvider() ? (
           <CompactUsage
             state={state}
             theme={theme}
@@ -284,7 +295,10 @@ export default Plugin.define({
     }
 
     function cycleCountdown() {
-      countdown = WINDOW_KEYS[(WINDOW_KEYS.indexOf(countdown) + 1) % WINDOW_KEYS.length];
+      const windows = snapshot(last)?.windows;
+      if (!windows || windows.length === 0) return;
+      const selected = selectWindow(windows, countdown);
+      countdown = windows[(windows.indexOf(selected) + 1) % windows.length].id;
       queueMicrotask(() => renderCompact());
     }
 
@@ -293,36 +307,25 @@ export default Plugin.define({
       renderCompact();
     }
 
-    // sidebarRendered is only set while the sidebar slot renders, so polling
-    // pauses when neither widget can show.
-    function shouldPoll() {
-      return sidebarRendered || isGoSelected();
-    }
-
-    function resumePolling() {
-      if (!suspended) return;
-      suspended = false;
-      void refresh();
-    }
-
     let generation = 0;
 
-    async function refresh() {
+    async function refresh(selected = selectedProvider()) {
       const current = ++generation;
+      let name: string | undefined;
       let account: string | undefined;
       try {
-        const entries = await context.client.credential.list();
+        const credential = selected?.info
+          ? resolveCredential(selected.adapter, await context.client.credential.list())
+          : undefined;
         if (current !== generation) return;
-        const credential = pickCredential(entries);
-        if (!credential) {
-          switched = false;
+        if (!selected?.info || !credential) {
           last = { status: "unavailable" };
         } else {
-          account = accountLabel(credential);
-          const usage = await fetchUsage(credential);
+          name = selected.info.name;
+          account = credential.label;
+          const windows = await selected.adapter.fetch(credential);
           if (current !== generation) return;
-          switched = false;
-          last = { status: "ok", usage, account, now: Date.now() };
+          last = { status: "ok", name, account, windows, now: Date.now() };
         }
       } catch (error) {
         if (current !== generation) return;
@@ -330,30 +333,31 @@ export default Plugin.define({
         last = {
           status: "error",
           message: error instanceof Error ? error.message : String(error),
-          usage: switched ? undefined : previous?.usage,
+          windows: previous?.windows,
           account: account ?? previous?.account,
+          name: name ?? previous?.name,
           now: Date.now(),
         };
-        switched = false;
       }
       renderAll();
     }
 
     renderAll();
     void refresh();
+    // sidebarRendered is only set while the sidebar slot renders, so polling
+    // pauses when neither widget can show.
     const timer = setInterval(() => {
-      if (!shouldPoll()) {
-        suspended = true;
-        return;
-      }
-      void refresh();
+      const selected = selectedProvider();
+      if (!sidebarRendered && !selected) return;
+      void refresh(selected);
     }, refreshSeconds * 1000);
 
     const stopCredentialUpdated = context.data.on("credential.updated", () => {
       void refresh();
     });
     const stopCredentialSwitched = context.data.on("credential.switched", () => {
-      switched = true;
+      last = { status: "loading" };
+      renderAll();
       void refresh();
     });
 
@@ -371,11 +375,14 @@ export default Plugin.define({
       );
       createEffect(
         on(
-          () => isGoSelected(),
-          (go, previous) => {
-            if (go === previous) return;
-            untrack(() => renderCompact());
-            if (go) resumePolling();
+          () => context.ui.model.current()?.providerID,
+          (providerID, previous) => {
+            if (providerID === previous) return;
+            untrack(() => {
+              last = { status: "loading" };
+              renderAll();
+              void refresh();
+            });
           },
           { defer: true },
         ),

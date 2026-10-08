@@ -1,13 +1,17 @@
-# opencode-go-usage
+# opencode-usage
 
-OpenCode v2 TUI plugin that shows [OpenCode Go](https://opencode.ai/go) quota in the sidebar, plus a compact indicator above the prompt when an OpenCode Go model is selected.
+OpenCode v2 TUI plugin that shows the selected provider's quota/usage in the sidebar, plus a compact indicator above the prompt.
+
+## Supported providers
+
+- [OpenCode Go](https://opencode.ai/go)
 
 ## Preview
 
 Sidebar widget:
 
 ```text
-OpenCode Go              account@example.com
+OpenCode Go                          Default
 5h 42% ████████████░░░░░░░░░░░░░░░░░   3h 6m
 wk 18% █████░░░░░░░░░░░░░░░░░░░░░░░░  2d 11h
 mo  7% ██░░░░░░░░░░░░░░░░░░░░░░░░░░░     20d
@@ -16,14 +20,14 @@ mo  7% ██░░░░░░░░░░░░░░░░░░░░░░�
 Compact indicator:
 
 ```text
-OpenCode Go                    ◈ ◇ ◇   3h 6m
+OpenCode Go               ◈ ◇ ◇ 5h ·   3h 6m
 ```
 
-The three glyphs stand for the `5h`, `wk`, and `mo` windows in order. Each fills up as usage rises: `◇` below 70%, `◈` from 70%, `◆` from 90%. The window the countdown tracks is colored by the same levels — green, amber, red — while the others stay muted.
+The glyphs stand for the provider's quota windows in order. Each fills up as usage rises: `◇` below 70%, `◈` from 70%, `◆` from 90%. The window the countdown tracks is colored by the same levels — green, amber, red — while the others stay muted.
 
 <!-- prettier-ignore -->
 > [!TIP]
-> Click the name to toggle between `OpenCode Go` and the active account. Click the glyphs or the countdown to cycle the window it tracks: `5h → wk → mo`.
+> Click the name to toggle between the provider name and the active account. Click the glyphs, label, or countdown to cycle the window it tracks.
 
 ## Installation
 
@@ -31,7 +35,7 @@ Add the plugin to `cli.json`:
 
 ```json
 {
-  "plugins": ["github:lqmanh/opencode-go-usage"]
+  "plugins": ["github:lqmanh/opencode-usage"]
 }
 ```
 
@@ -45,7 +49,7 @@ Add the plugin to `cli.json`:
 {
   "plugins": [
     {
-      "package": "github:lqmanh/opencode-go-usage",
+      "package": "github:lqmanh/opencode-usage",
       "options": {
         "refreshSeconds": 120
       }
