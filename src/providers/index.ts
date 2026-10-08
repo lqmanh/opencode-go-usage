@@ -1,8 +1,9 @@
 import type { CredentialEntry } from "@opencode/client";
+import { kimiCn, kimiGlobal } from "./kimi";
 import { opencodeGo } from "./opencode-go";
 import type { Credential, UsageProvider } from "./types";
 
-const PROVIDERS: readonly UsageProvider[] = [opencodeGo];
+const PROVIDERS: readonly UsageProvider[] = [opencodeGo, kimiCn, kimiGlobal];
 
 export function findProvider(
   providerID: string | undefined,

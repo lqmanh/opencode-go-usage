@@ -1,10 +1,9 @@
-import { isRecord, withTimeout } from "../http";
+import { fetchUsageJSON, isRecord } from "../http";
 import type { UsageWindow } from "../usage";
 import type { Credential, UsageProvider } from "./types";
 
 const INTEGRATIONS = ["opencode-go", "opencode"] as const;
 const LABELS = { rolling: "5h", weekly: "wk", monthly: "mo" } as const;
-const TIMEOUT_MS = 15_000;
 
 type WindowID = keyof typeof LABELS;
 
@@ -40,34 +39,15 @@ async function fetchUsage(credential: Credential): Promise<UsageWindow[]> {
       "Console credential expired - send a prompt with an OpenCode Go model to refresh it",
     );
   }
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${credential.token}`,
-    Accept: "application/json",
-    "User-Agent": "opencode-usage",
-  };
   // The inference gateway selects the org with `x-opencode-org-id`.
   const orgID = credential.metadata.orgID;
-  if (credential.kind === "oauth" && typeof orgID === "string") {
-    headers["x-opencode-org-id"] = orgID;
-  }
-  const response = await withTimeout(
-    fetch(endpointFor(credential), {
-      headers,
-      redirect: "error",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    }),
-    TIMEOUT_MS,
+  const headers =
+    credential.kind === "oauth" && typeof orgID === "string"
+      ? { "x-opencode-org-id": orgID }
+      : undefined;
+  return decodeUsage(
+    await fetchUsageJSON(endpointFor(credential), credential.token, "Go", headers),
   );
-  if (!response.ok) {
-    const detail = await withTimeout(
-      response.text().catch(() => ""),
-      TIMEOUT_MS,
-    );
-    throw new Error(
-      `Go usage request failed with HTTP ${response.status}${detail ? `: ${detail.slice(0, 120)}` : ""}`,
-    );
-  }
-  return decodeUsage(await withTimeout(response.json(), TIMEOUT_MS));
 }
 
 // Go API keys live under integration `opencode-go`; Console accounts under

@@ -5,6 +5,7 @@ OpenCode v2 TUI plugin that shows the selected provider's quota/usage in the sid
 ## Supported providers
 
 - [OpenCode Go](https://opencode.ai/go)
+- [Kimi for Coding CN](https://www.kimi.com/code) and [Kimi for Coding Global](https://www.kimi.ai/code)
 
 ## Preview
 
