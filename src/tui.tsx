@@ -18,7 +18,6 @@ type Snapshot = {
 };
 
 type WidgetState =
-  | { status: "loading" }
   | ({ status: "ok" } & Snapshot)
   | { status: "unavailable" }
   | ({ status: "error"; message: string } & Partial<Snapshot>);
@@ -101,12 +100,7 @@ function WindowRow(props: {
 
 function UsageWidget(props: { state: WidgetState; theme: ResolvedTheme }) {
   const current = snapshot(props.state);
-  const statusLine =
-    props.state.status === "loading"
-      ? "Loading..."
-      : props.state.status === "error"
-        ? props.state.message
-        : "";
+  const statusLine = props.state.status === "error" ? props.state.message : "";
   const statusColor =
     props.state.status === "error"
       ? props.theme.text.feedback.error.base
@@ -232,8 +226,11 @@ export default Plugin.define({
         ? options.refreshSeconds
         : 300;
 
-    // The host repaints only a plugin's initial frame (anomalyco/opencode#39986),
-    // so widgets stay stateless and claims remount on every change.
+    // Workaround for anomalyco/opencode#39986: the host only repaints a
+    // plugin's initial frame, so widgets stay stateless and claims remount on
+    // every change. A remount alone no longer schedules a frame, so each one
+    // also requests a render. Drop the stateless remounting and the
+    // requestRender calls once the host shares its Solid runtime with plugins.
     let last: WidgetState | null = null;
     let showAccount = false;
     let countdown: string | undefined;
@@ -257,8 +254,8 @@ export default Plugin.define({
       append: "sidebar.content" | "session.composer.top",
       render: (state: WidgetState, theme: ResolvedTheme) => JSX.Element,
     ) {
-      if (last?.status === "unavailable") return undefined;
-      const state: WidgetState = last ?? { status: "loading" };
+      if (!last || last.status === "unavailable") return undefined;
+      const state = last;
       const theme = context.theme;
       return context.ui.slot({ append, render: () => render(state, theme) });
     }
@@ -270,6 +267,7 @@ export default Plugin.define({
         sidebarRendered = true;
         return <UsageWidget state={state} theme={theme} />;
       });
+      context.renderer.requestRender();
     }
 
     function renderCompact() {
@@ -286,6 +284,7 @@ export default Plugin.define({
           />
         ) : null,
       );
+      context.renderer.requestRender();
     }
 
     function toggleAccount() {
@@ -356,8 +355,6 @@ export default Plugin.define({
       void refresh();
     });
     const stopCredentialSwitched = context.data.on("credential.switched", () => {
-      last = { status: "loading" };
-      renderAll();
       void refresh();
     });
 
@@ -379,8 +376,6 @@ export default Plugin.define({
           (providerID, previous) => {
             if (providerID === previous) return;
             untrack(() => {
-              last = { status: "loading" };
-              renderAll();
               void refresh();
             });
           },
